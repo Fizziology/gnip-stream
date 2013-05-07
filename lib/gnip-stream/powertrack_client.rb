@@ -1,7 +1,7 @@
 module GnipStream
   class PowertrackClient
     def initialize(url, username, password)
-      @stream = JsonStream.new(url, "authorization" => [username, password], "accept-encoding" => "gzip, compressed")
+      @stream = JsonStream.new(url, username, password, "accept-encoding" => "gzip, compressed")
       @error_handler = ErrorReconnect.new(self, :consume)
       @connection_close_handler = ErrorReconnect.new(self, :consume)
       configure_handlers

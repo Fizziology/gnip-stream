@@ -1,5 +1,5 @@
 require 'eventmachine'
-require 'em-http-request'
+require 'net/http'
 
 module GnipStream
   class Stream
@@ -8,9 +8,11 @@ module GnipStream
 
     attr_accessor :headers, :options, :url, :username, :password
 
-    def initialize(url, processor, headers={})
-      @url = url
+    def initialize(url, username, password, processor, headers={})
+      @url = URI.parse(url)
       @headers = headers
+      @username = username
+      @password = password
       @processor = processor
     end
 
@@ -28,22 +30,36 @@ module GnipStream
 
     def connect
       EM.run do
-        http = EM::HttpRequest.new(@url, :inactivity_timeout => 2**16, :connection_timeout => 2**16).get(:head => @headers)
-        http.stream { |chunk| process_chunk(chunk) }
-        http.callback { 
-          handle_connection_close(http) 
-          EM.stop
-        }
-        http.errback { 
-          handle_error(http)
-          EM.stop
-        }
+        Net::HTTP.start( url.host, url.port, :use_ssl => url.scheme == 'https') do |http|
+          begin
+            request = Net::HTTP::Get.new url.request_uri
+            request.initialize_http_header(headers)
+            request.basic_auth @username, @password
+            
+            http.request(request) do |response|
+              StringIO.open do |io|
+                response.read_body{ |chunk| process_chunk( chunk ) }
+              end
+            end
+            
+            http.callback { 
+              handle_connection_close(http) 
+              EM.stop
+            }
+            http.errback { 
+              handle_error(http)
+              EM.stop
+            }
+          rescue Timeout::Error, Errno::EINVAL, Errno::ECONNRESET, EOFError,Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Net::ProtocolError => e
+            handle_error( http ) 
+          end
+        end
       end
     end
 
     def process_chunk(chunk)
       @processor.process(chunk)
-      @processor.complete_entries.each do |entry| 
+      @processor.complete_entries.each do |entry|
         EM.defer { @on_message.call(entry) }
       end
     end
