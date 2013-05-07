@@ -20,5 +20,6 @@ Gem::Specification.new do |s|
 
   s.add_development_dependency "rspec"
 
+  s.add_dependency "eventmachine"
   s.add_dependency "yajl-ruby"
 end
