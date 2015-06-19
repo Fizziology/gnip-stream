@@ -4,7 +4,7 @@ module GnipStream
   class JsonStream
     include StreamDelegate
     def initialize(url, username, password, headers={})
-      json_processor = GzippedJSONBuffer.new
+      json_processor = JsonDataBuffer.new("\r\n", Regexp.new(/^\{.*\}\r\n/))
       @stream = Stream.new(url, username, password, json_processor, headers)
     end
   end
